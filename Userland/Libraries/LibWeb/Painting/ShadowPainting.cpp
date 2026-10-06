@@ -6,6 +6,7 @@
  * SPDX-License-Identifier: BSD-2-Clause
  */
 
+#include <AK/Math.h>
 #include <AK/NumericLimits.h>
 #include <LibGfx/DisjointRectSet.h>
 #include <LibGfx/Filters/StackBlurFilter.h>
@@ -134,10 +135,22 @@ static OuterBoxShadowMetrics get_outer_box_shadow_configuration(PaintBoxShadowPa
     auto bottom_right_shadow_corner = bottom_right_corner;
     auto bottom_left_shadow_corner = bottom_left_corner;
 
+    // https://drafts.csswg.org/css-backgrounds/#shadow-shape
+    // To preserve the box's shape when spread is applied, the spread distance is multiplied by
+    // 1 + (r - 1)^3, where r is the ratio of the border radius to the spread distance, for any
+    // border radius that is smaller than the spread distance.
+    auto spread_radius = [&](int radius) {
+        if (radius >= spread_distance)
+            return radius + spread_distance;
+        auto radius_spread_ratio = static_cast<float>(radius) / static_cast<float>(spread_distance);
+        auto scaled_spread_distance = static_cast<float>(spread_distance) * (1 + AK::pow(radius_spread_ratio - 1, 3.0f));
+        return radius + round_to<int>(scaled_spread_distance);
+    };
+
     auto spread_corner = [&](auto& corner) {
         if (corner) {
-            corner.horizontal_radius += spread_distance;
-            corner.vertical_radius += spread_distance;
+            corner.horizontal_radius = spread_radius(corner.horizontal_radius);
+            corner.vertical_radius = spread_radius(corner.vertical_radius);
         }
     };
 
